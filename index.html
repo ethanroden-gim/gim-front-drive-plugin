@@ -131,16 +131,23 @@
       statusEl.className = 'status ' + type;
     }
 
-    // ── FRONT SDK INIT ─────────────────────────────────────────────
-    // ── FRONT SDK INIT ─────────────────────────────────────────────
-    Front.on('conversation', function(conversation) {
-      loadAttachments(conversation);
-    });
-    
-    Front.on('no_conversation', function() {
-      setStatus('Open a conversation to use this plugin.');
-    });
+// ── FRONT SDK INIT ─────────────────────────────────────────────
+Front.on('conversation', function(conversation) {
+  loadAttachments(conversation);
+});
 
+Front.on('no_conversation', function() {
+  setStatus('Open a conversation to use this plugin.');
+});
+
+// Fallback: if no event fires within 3 seconds, prompt user to click another conversation
+setTimeout(function() {
+  if (attachments.length === 0 && statusEl.textContent === 'Initializing...') {
+    setStatus('Click away and back to this conversation to load attachments.');
+  }
+}, 3000);
+window.addEventListener('load', initFront);
+    
     function loadAttachments(conversation) {
       attachments = [];
       attachmentList.innerHTML = '';
