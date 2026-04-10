@@ -5,330 +5,63 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Save to Google Drive</title>
   <script src="https://dl.frontapp.com/libs/frontjs.min.js"></script>
-  <script src="https://apis.google.com/js/api.js"></script>
-  <script src="https://accounts.google.com/gsi/client"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 14px;
-      color: #333;
-      padding: 16px;
+      font-family: sans-serif;
+      font-size: 12px;
+      padding: 10px;
       background: #fff;
     }
-    h2 {
-      font-size: 15px;
-      font-weight: 600;
-      margin-bottom: 12px;
-      color: #1a1a1a;
+    pre {
+      white-space: pre-wrap;
+      word-break: break-all;
+      background: #f5f5f5;
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 11px;
     }
-    .status {
-      font-size: 13px;
+    #status {
       color: #666;
-      margin-bottom: 12px;
-      min-height: 18px;
-    }
-    .status.error { color: #c0392b; }
-    .status.success { color: #27ae60; }
-    button {
-      width: 100%;
-      padding: 9px 12px;
-      border: none;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
       margin-bottom: 8px;
-      transition: background 0.2s;
     }
-    #signInBtn {
-      background: #4285F4;
-      color: white;
-    }
-    #signInBtn:hover { background: #3367d6; }
-    #pickFolderBtn {
-      background: #f1f3f4;
-      color: #333;
-      border: 1px solid #dadce0;
-    }
-    #pickFolderBtn:hover { background: #e8eaed; }
-    #saveBtn {
-      background: #34a853;
-      color: white;
-    }
-    #saveBtn:hover { background: #2d8f47; }
-    #saveBtn:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
-    .attachment-list {
-      margin-bottom: 12px;
-    }
-    .attachment-item {
-      display: flex;
-      align-items: center;
-      padding: 6px 0;
-      border-bottom: 1px solid #f0f0f0;
-      font-size: 13px;
-    }
-    .attachment-item input {
-      margin-right: 8px;
-      cursor: pointer;
-    }
-    .attachment-name {
-      flex: 1;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .folder-selected {
-      font-size: 12px;
-      color: #4285F4;
-      margin-bottom: 10px;
-      word-break: break-word;
-    }
-    .hidden { display: none; }
   </style>
 </head>
 <body>
-
-  <h2>Save to Google Drive</h2>
-  <div class="status" id="status">Initializing...</div>
-
-  <div id="signInSection" class="hidden">
-    <button id="signInBtn">Sign in with Google</button>
-  </div>
-
-  <div id="mainSection" class="hidden">
-    <div class="attachment-list" id="attachmentList"></div>
-    <div class="folder-selected hidden" id="folderName"></div>
-    <button id="pickFolderBtn">📁 Select Drive Folder</button>
-    <button id="saveBtn" disabled>Save to Drive</button>
-  </div>
+  <div id="status">Waiting for Front event...</div>
+  <pre id="output">No data yet.</pre>
 
   <script>
-    // ── CONFIGURATION ──────────────────────────────────────────────
-    const CLIENT_ID    = '165239307676-ufijf1pmommmv1ls9dkf198ed8tdb557.apps.googleusercontent.com';
-    const MAKE_WEBHOOK = 'https://hook.us2.make.com/1bh6ass7c567frbh182vd8k8f2qtgfyo';
-    const SCOPES       = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
-    // ───────────────────────────────────────────────────────────────
+    var statusEl = document.getElementById('status');
+    var outputEl = document.getElementById('output');
 
-    let accessToken    = null;
-    let selectedFolder = null;
-    let attachments    = [];
-
-    const statusEl       = document.getElementById('status');
-    const signInSection  = document.getElementById('signInSection');
-    const mainSection    = document.getElementById('mainSection');
-    const attachmentList = document.getElementById('attachmentList');
-    const folderNameEl   = document.getElementById('folderName');
-    const pickFolderBtn  = document.getElementById('pickFolderBtn');
-    const saveBtn        = document.getElementById('saveBtn');
-    const signInBtn      = document.getElementById('signInBtn');
-
-    function setStatus(msg, type = '') {
-      statusEl.textContent = msg;
-      statusEl.className = 'status ' + type;
-    }
-
-// ── FRONT SDK INIT ─────────────────────────────────────────────
-Front.on('conversation', function(event) {
-  loadAttachments(event);
-});
-
-Front.on('no_conversation', function() {
-  setStatus('Open a conversation to use this plugin.');
-});
-
-// Fallback: if no event fires within 3 seconds, prompt user to click another conversation
-setTimeout(function() {
-  if (attachments.length === 0 && statusEl.textContent === 'Initializing...') {
-    setStatus('Click away and back to this conversation to load attachments.');
-  }
-}, 3000);
-   
-    function loadAttachments(conversation) {
-      attachments = [];
-      attachmentList.innerHTML = '';
-
-const allMessages = [event.message].concat(event.otherMessages || []).filter(Boolean);
-allMessages.forEach(function(msg) {
-  (msg.attachments || []).forEach(function(att) {
-          attachments.push({
-            url: att.url,
-            filename: att.filename,
-            content_type: att.content_type
-          });
-        });
-      });
-
-      if (attachments.length === 0) {
-        setStatus('No attachments found in this conversation.');
-        mainSection.classList.remove('hidden');
-        signInSection.classList.add('hidden');
-        pickFolderBtn.style.display = 'none';
-        saveBtn.style.display = 'none';
-        return;
-      }
-
-      pickFolderBtn.style.display = '';
-      saveBtn.style.display = '';
-
-      attachments.forEach(function(att, i) {
-        const item = document.createElement('div');
-        item.className = 'attachment-item';
-        item.innerHTML =
-          '<input type="checkbox" id="att_' + i + '" value="' + i + '" checked>' +
-          '<label class="attachment-name" for="att_' + i + '" title="' + att.filename + '">' + att.filename + '</label>';
-        attachmentList.appendChild(item);
-      });
-
-      checkIfSignedIn();
-    }
-
-    // ── GOOGLE AUTH ────────────────────────────────────────────────
-    function checkIfSignedIn() {
-      const token = sessionStorage.getItem('gim_access_token');
-      if (token) {
-        accessToken = token;
-        showMainSection();
-      } else {
-        signInSection.classList.remove('hidden');
-        mainSection.classList.remove('hidden');
-        setStatus('Sign in to continue.');
+    function log(label, data) {
+      statusEl.textContent = label;
+      try {
+        outputEl.textContent = JSON.stringify(data, null, 2);
+      } catch(e) {
+        outputEl.textContent = String(data);
       }
     }
 
-    signInBtn.addEventListener('click', function() {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: function(response) {
-          if (response.access_token) {
-            accessToken = response.access_token;
-            sessionStorage.setItem('gim_access_token', accessToken);
-            signInSection.classList.add('hidden');
-            showMainSection();
-          } else {
-            setStatus('Sign in failed. Please try again.', 'error');
-          }
+    log('Script loaded. Registering Front events...', {});
+
+    Front.on('conversation', function(event) {
+      log('conversation event fired', event);
+    });
+
+    Front.on('no_conversation', function(event) {
+      log('no_conversation event fired', event);
+    });
+
+    // Also try the older style
+    if (typeof Front.init === 'function') {
+      log('Front.init exists, calling it...', {});
+      Front.init({
+        conversation: function(data) {
+          log('Front.init conversation callback', data);
         }
       });
-      client.requestAccessToken();
-    });
-
-    function showMainSection() {
-      mainSection.classList.remove('hidden');
-      setStatus('');
-      updateSaveButton();
     }
-
-    // ── GOOGLE DRIVE FOLDER PICKER ─────────────────────────────────
-    pickFolderBtn.addEventListener('click', function() {
-      gapi.load('picker', function() {
-        const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
-          .setSelectFolderEnabled(true)
-          .setIncludeFolders(true);
-
-        const sharedView = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
-          .setEnableTeamDrives(true)
-          .setSelectFolderEnabled(true)
-          .setIncludeFolders(true);
-
-        const picker = new google.picker.PickerBuilder()
-          .addView(view)
-          .addView(sharedView)
-          .setOAuthToken(accessToken)
-          .setCallback(pickerCallback)
-          .setTitle('Select a folder to save attachments')
-          .build();
-
-        picker.setVisible(true);
-      });
-    });
-
-    function pickerCallback(data) {
-      if (data.action === google.picker.Action.PICKED) {
-        selectedFolder = {
-          id: data.docs[0].id,
-          name: data.docs[0].name
-        };
-        folderNameEl.textContent = '📁 ' + selectedFolder.name;
-        folderNameEl.classList.remove('hidden');
-        updateSaveButton();
-      }
-    }
-
-    // ── SAVE BUTTON ────────────────────────────────────────────────
-    function updateSaveButton() {
-      const anyChecked = document.querySelectorAll('#attachmentList input:checked').length > 0;
-      saveBtn.disabled = !(selectedFolder && anyChecked);
-    }
-
-    attachmentList.addEventListener('change', updateSaveButton);
-
-    saveBtn.addEventListener('click', function() {
-      const checked = document.querySelectorAll('#attachmentList input:checked');
-      const selected = [];
-      checked.forEach(function(cb) {
-        selected.push(attachments[parseInt(cb.value)]);
-      });
-
-      if (selected.length === 0 || !selectedFolder) return;
-
-      saveBtn.disabled = true;
-      setStatus('Saving...');
-
-      let saved = 0;
-      let failed = 0;
-      let completed = 0;
-
-      selected.forEach(function(att) {
-        fetch(att.url)
-          .then(function(res) { return res.blob(); })
-          .then(function(blob) {
-            return new Promise(function(resolve, reject) {
-              const reader = new FileReader();
-              reader.onload = function() { resolve(reader.result.split(',')[1]); };
-              reader.onerror = reject;
-              reader.readAsDataURL(blob);
-            });
-          })
-          .then(function(base64) {
-            return fetch(MAKE_WEBHOOK, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                filename: att.filename,
-                mimeType: att.content_type || 'application/octet-stream',
-                folderId: selectedFolder.id,
-                folderName: selectedFolder.name,
-                accessToken: accessToken,
-                fileData: base64
-              })
-            });
-          })
-          .then(function(res) {
-            if (res.ok) { saved++; } else { failed++; }
-            completed++;
-            if (completed === selected.length) { finish(); }
-          })
-          .catch(function() {
-            failed++;
-            completed++;
-            if (completed === selected.length) { finish(); }
-          });
-      });
-
-      function finish() {
-        if (failed === 0) {
-          setStatus('✓ ' + saved + ' file' + (saved > 1 ? 's' : '') + ' saved to ' + selectedFolder.name, 'success');
-        } else {
-          setStatus(saved + ' saved, ' + failed + ' failed. Check your connection and try again.', 'error');
-        }
-        saveBtn.disabled = false;
-      }
-    });
   </script>
 </body>
 </html>
