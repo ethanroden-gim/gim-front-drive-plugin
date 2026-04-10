@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Save to Google Drive</title>
-  <script src="https://dl.frontapp.com/libs/plugin-sdk/1.0.0/frontapp-plugin-sdk.js"></script>
+  <script src="https://dl.frontapp.com/libs/frontjs.min.js"></script>
   <script src="https://apis.google.com/js/api.js"></script>
   <script src="https://accounts.google.com/gsi/client"></script>
   <style>
@@ -108,25 +108,23 @@
 
   <script>
     // ── CONFIGURATION ──────────────────────────────────────────────
-    const CLIENT_ID     = '165239307676-ufijf1pmommmv1ls9dkf198ed8tdb557.apps.googleusercontent.com';
-    const MAKE_WEBHOOK  = 'https://hook.us2.make.com/1bh6ass7c567frbh182vd8k8f2qtgfyo';
-    const SCOPES        = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
+    const CLIENT_ID    = '165239307676-ufijf1pmommmv1ls9dkf198ed8tdb557.apps.googleusercontent.com';
+    const MAKE_WEBHOOK = 'https://hook.us2.make.com/1bh6ass7c567frbh182vd8k8f2qtgfyo';
+    const SCOPES       = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
     // ───────────────────────────────────────────────────────────────
 
-    let accessToken   = null;
+    let accessToken    = null;
     let selectedFolder = null;
-    let context        = null;
     let attachments    = [];
 
-    const statusEl      = document.getElementById('status');
-    const signInSection = document.getElementById('signInSection');
-    const mainSection   = document.getElementById('mainSection');
-    const attachmentList= document.getElementById('attachmentList');
-    const folderNameEl  = document.getElementById('folderName');
-    const pickFolderBtn = document.getElementById('pickFolderBtn');
-    const saveBtn       = document.getElementById('saveBtn');
-    const signInBtn     = document.getElementById('signInBtn');
-
+    const statusEl       = document.getElementById('status');
+    const signInSection  = document.getElementById('signInSection');
+    const mainSection    = document.getElementById('mainSection');
+    const attachmentList = document.getElementById('attachmentList');
+    const folderNameEl   = document.getElementById('folderName');
+    const pickFolderBtn  = document.getElementById('pickFolderBtn');
+    const saveBtn        = document.getElementById('saveBtn');
+    const signInBtn      = document.getElementById('signInBtn');
 
     function setStatus(msg, type = '') {
       statusEl.textContent = msg;
@@ -134,41 +132,48 @@
     }
 
     // ── FRONT SDK INIT ─────────────────────────────────────────────
-    async function initFront() {
-      try {
-        const Front = window.FrontPlugin;
-        await Front.init();
-        context = await Front.fetchContext();
-        setStatus('');
-        loadAttachments();
-      } catch (e) {
-        setStatus('Could not connect to Front.', 'error');
+    Front.init({
+      assigned: function(conversation) {
+        loadAttachments(conversation);
+      },
+      conversation: function(conversation) {
+        loadAttachments(conversation);
       }
-    }
+    });
 
-    function loadAttachments() {
+    function loadAttachments(conversation) {
       attachments = [];
       attachmentList.innerHTML = '';
 
-      const messages = context?.conversation?.messages || [];
-      messages.forEach(msg => {
-        (msg.attachments || []).forEach(att => {
-          attachments.push({ messageId: msg.id, ...att });
+      const messages = conversation.messages || [];
+      messages.forEach(function(msg) {
+        (msg.attachments || []).forEach(function(att) {
+          attachments.push({
+            url: att.url,
+            filename: att.filename,
+            content_type: att.content_type
+          });
         });
       });
 
       if (attachments.length === 0) {
         setStatus('No attachments found in this conversation.');
+        mainSection.classList.remove('hidden');
+        signInSection.classList.add('hidden');
+        pickFolderBtn.style.display = 'none';
+        saveBtn.style.display = 'none';
         return;
       }
 
-      attachments.forEach((att, i) => {
+      pickFolderBtn.style.display = '';
+      saveBtn.style.display = '';
+
+      attachments.forEach(function(att, i) {
         const item = document.createElement('div');
         item.className = 'attachment-item';
-        item.innerHTML = `
-          <input type="checkbox" id="att_${i}" value="${i}" checked>
-          <label class="attachment-name" for="att_${i}" title="${att.filename}">${att.filename}</label>
-        `;
+        item.innerHTML =
+          '<input type="checkbox" id="att_' + i + '" value="' + i + '" checked>' +
+          '<label class="attachment-name" for="att_' + i + '" title="' + att.filename + '">' + att.filename + '</label>';
         attachmentList.appendChild(item);
       });
 
@@ -183,15 +188,16 @@
         showMainSection();
       } else {
         signInSection.classList.remove('hidden');
+        mainSection.classList.remove('hidden');
         setStatus('Sign in to continue.');
       }
     }
 
-    signInBtn.addEventListener('click', () => {
+    signInBtn.addEventListener('click', function() {
       const client = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
-        callback: (response) => {
+        callback: function(response) {
           if (response.access_token) {
             accessToken = response.access_token;
             sessionStorage.setItem('gim_access_token', accessToken);
@@ -212,8 +218,8 @@
     }
 
     // ── GOOGLE DRIVE FOLDER PICKER ─────────────────────────────────
-    pickFolderBtn.addEventListener('click', () => {
-      gapi.load('picker', () => {
+    pickFolderBtn.addEventListener('click', function() {
+      gapi.load('picker', function() {
         const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
           .setSelectFolderEnabled(true)
           .setIncludeFolders(true);
@@ -249,15 +255,18 @@
 
     // ── SAVE BUTTON ────────────────────────────────────────────────
     function updateSaveButton() {
-      const anyChecked = [...document.querySelectorAll('#attachmentList input:checked')].length > 0;
+      const anyChecked = document.querySelectorAll('#attachmentList input:checked').length > 0;
       saveBtn.disabled = !(selectedFolder && anyChecked);
     }
 
     attachmentList.addEventListener('change', updateSaveButton);
 
-    saveBtn.addEventListener('click', async () => {
-      const selected = [...document.querySelectorAll('#attachmentList input:checked')]
-        .map(cb => attachments[parseInt(cb.value)]);
+    saveBtn.addEventListener('click', function() {
+      const checked = document.querySelectorAll('#attachmentList input:checked');
+      const selected = [];
+      checked.forEach(function(cb) {
+        selected.push(attachments[parseInt(cb.value)]);
+      });
 
       if (selected.length === 0 || !selectedFolder) return;
 
@@ -266,51 +275,54 @@
 
       let saved = 0;
       let failed = 0;
+      let completed = 0;
 
-      for (const att of selected) {
-        try {
-          const Front = window.Front;
-          const blob = await Front.fetchContext().then(() =>
-            context.downloadAttachment(att.messageId, att.id)
-          );
-
-          const reader = new FileReader();
-          const base64 = await new Promise((res, rej) => {
-            reader.onload = () => res(reader.result.split(',')[1]);
-            reader.onerror = rej;
-            reader.readAsDataURL(blob);
+      selected.forEach(function(att) {
+        fetch(att.url)
+          .then(function(res) { return res.blob(); })
+          .then(function(blob) {
+            return new Promise(function(resolve, reject) {
+              const reader = new FileReader();
+              reader.onload = function() { resolve(reader.result.split(',')[1]); };
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+          })
+          .then(function(base64) {
+            return fetch(MAKE_WEBHOOK, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                filename: att.filename,
+                mimeType: att.content_type || 'application/octet-stream',
+                folderId: selectedFolder.id,
+                folderName: selectedFolder.name,
+                accessToken: accessToken,
+                fileData: base64
+              })
+            });
+          })
+          .then(function(res) {
+            if (res.ok) { saved++; } else { failed++; }
+            completed++;
+            if (completed === selected.length) { finish(); }
+          })
+          .catch(function() {
+            failed++;
+            completed++;
+            if (completed === selected.length) { finish(); }
           });
+      });
 
-          const response = await fetch(MAKE_WEBHOOK, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              filename: att.filename,
-              mimeType: att.content_type || 'application/octet-stream',
-              folderId: selectedFolder.id,
-              folderName: selectedFolder.name,
-              accessToken: accessToken,
-              fileData: base64
-            })
-          });
-
-          if (response.ok) { saved++; } else { failed++; }
-        } catch (e) {
-          failed++;
+      function finish() {
+        if (failed === 0) {
+          setStatus('✓ ' + saved + ' file' + (saved > 1 ? 's' : '') + ' saved to ' + selectedFolder.name, 'success');
+        } else {
+          setStatus(saved + ' saved, ' + failed + ' failed. Check your connection and try again.', 'error');
         }
+        saveBtn.disabled = false;
       }
-
-      if (failed === 0) {
-        setStatus(`✓ ${saved} file${saved > 1 ? 's' : ''} saved to ${selectedFolder.name}`, 'success');
-      } else {
-        setStatus(`${saved} saved, ${failed} failed. Check your connection and try again.`, 'error');
-      }
-
-      saveBtn.disabled = false;
     });
-
-    // ── START ──────────────────────────────────────────────────────
-    window.addEventListener('load', initFront);
   </script>
 </body>
 </html>
