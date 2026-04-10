@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Save to Google Drive</title>
-  <script src="https://unpkg.com/@frontapp/plugin-sdk@latest/dist/frontapp-plugin-sdk.js"></script>
+  <script src="https://dl.frontapp.com/libs/plugin-sdk/1.0.0/frontapp-plugin-sdk.js"></script>
   <script src="https://apis.google.com/js/api.js"></script>
   <script src="https://accounts.google.com/gsi/client"></script>
   <style>
@@ -127,6 +127,7 @@
     const saveBtn       = document.getElementById('saveBtn');
     const signInBtn     = document.getElementById('signInBtn');
 
+
     function setStatus(msg, type = '') {
       statusEl.textContent = msg;
       statusEl.className = 'status ' + type;
@@ -135,7 +136,7 @@
     // ── FRONT SDK INIT ─────────────────────────────────────────────
     async function initFront() {
       try {
-        const Front = window.Front;
+        const Front = window.FrontPlugin;
         await Front.init();
         context = await Front.fetchContext();
         setStatus('');
