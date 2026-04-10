@@ -132,8 +132,8 @@
     }
 
 // ── FRONT SDK INIT ─────────────────────────────────────────────
-Front.on('conversation', function(conversation) {
-  loadAttachments(conversation);
+Front.on('conversation', function(event) {
+  loadAttachments(event);
 });
 
 Front.on('no_conversation', function() {
@@ -151,9 +151,9 @@ setTimeout(function() {
       attachments = [];
       attachmentList.innerHTML = '';
 
-      const messages = conversation.messages || [];
-      messages.forEach(function(msg) {
-        (msg.attachments || []).forEach(function(att) {
+const allMessages = [event.message].concat(event.otherMessages || []).filter(Boolean);
+allMessages.forEach(function(msg) {
+  (msg.attachments || []).forEach(function(att) {
           attachments.push({
             url: att.url,
             filename: att.filename,
