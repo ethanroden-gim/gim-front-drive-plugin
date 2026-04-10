@@ -132,13 +132,13 @@
     }
 
     // ── FRONT SDK INIT ─────────────────────────────────────────────
-    Front.init({
-      assigned: function(conversation) {
-        loadAttachments(conversation);
-      },
-      conversation: function(conversation) {
-        loadAttachments(conversation);
-      }
+    // ── FRONT SDK INIT ─────────────────────────────────────────────
+    Front.on('conversation', function(conversation) {
+      loadAttachments(conversation);
+    });
+    
+    Front.on('no_conversation', function() {
+      setStatus('Open a conversation to use this plugin.');
     });
 
     function loadAttachments(conversation) {
